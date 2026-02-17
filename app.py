@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.express as px
 
 from resume_parser import extract_text_from_pdf
@@ -13,19 +12,35 @@ from career_analyzer import (
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(
-    page_title="AI Recruitment Dashboard",
+    page_title="Talency Recruitment System",
     layout="wide",
-    page_icon="🤖"
+    page_icon="🚀"
 )
 
-st.title("🤖 AI-Powered Recruitment Dashboard")
-st.markdown("Advanced Candidate–Job Matching & Risk Intelligence")
-st.divider()
+# ================= PROFESSIONAL HEADER =================
+st.markdown("""
+<div style="text-align: center; padding: 10px 0px;">
+    <h1 style="font-size: 40px;">Talency Recruitment System</h1>
+    <h3 style="color: grey; font-weight: normal;">
+        AI-Powered Recruitment & Candidate–Job Matching System
+    </h3>
+    <p style="font-size: 16px; color: #555;">
+        Intelligent Resume Screening • Semantic Matching • Recruitment Risk Analysis
+    </p>
+</div>
+""", unsafe_allow_html=True)
 
-# ================= LOAD JOB DATA =================
-@st.cache_data
-def load_jobs():
-    df = pd.read_csv("job_clean_data.csv")
+st.markdown("---")
+
+# ================= JOB DESCRIPTION SOURCE =================
+#st.sidebar.header("📄 Job Description Source")
+
+jd_source = st.sidebar.radio(
+    "Select Job Description Source",
+    ["Use Saved Job Description", "Upload New Job Description (.csv)"]
+)
+
+def process_jd_dataframe(df):
     df.columns = df.columns.str.strip()
     df = df.loc[:, ~df.columns.str.contains("^Unnamed")]
     df["Combined_JD"] = (
@@ -34,67 +49,85 @@ def load_jobs():
     )
     return df
 
-jobs_df = load_jobs()
+if jd_source == "Use Saved Job Description":
+    jobs_df = pd.read_csv("job_clean_data.csv")
+    jobs_df = process_jd_dataframe(jobs_df)
+else:
+    uploaded_jd = st.sidebar.file_uploader(
+        "Upload Job Description CSV",
+        type=["csv"]
+    )
+
+    if uploaded_jd:
+        jobs_df = pd.read_csv(uploaded_jd)
+        jobs_df = process_jd_dataframe(jobs_df)
+        st.sidebar.success("Job Description Uploaded Successfully ✅")
+    else:
+        st.warning("Please upload a Job Description CSV file.")
+        st.stop()
+
 job_titles = jobs_df["Job_title"].unique().tolist()
 
-# ================= SIDEBAR =================
-st.sidebar.header("⚙️ Configuration")
+# ================= SYSTEM CONFIGURATION =================
+#st.sidebar.header("⚙️ System Configuration")
 
 match_scope = st.sidebar.radio(
-    "🎯 Match Job",
-    ["Single Job", "Auto Detect Best Job"]
+    "Job Selection Strategy",
+    ["Single Job Role", "Auto Detect Best Role"]
 )
 
 matching_mode = st.sidebar.radio(
-    "🧠 Matching Mode",
-    ["Overall Job Description", "Single Field"]
+    "Matching Configuration",
+    ["Overall Job Description", "Specific Field Matching"]
 )
 
 selected_field = None
-if matching_mode == "Single Field":
+if matching_mode == "Specific Field Matching":
     selected_field = st.sidebar.selectbox(
-        "Select Field to Match",
+        "Select Field",
         ["Roles_Responsibility", "Skills_Required"]
     )
 
 selected_job = None
-if match_scope == "Single Job":
+if match_scope == "Single Job Role":
     selected_job = st.sidebar.selectbox(
-        "Select Job Role",
+        "Select Target Role",
         job_titles
     )
 
-st.sidebar.success("System Ready ✅")
+st.sidebar.info("System Configuration Active")
 
-# ================= UPLOAD =================
-st.subheader("📂 Upload Resumes")
+# ================= RESUME UPLOAD =================
+st.subheader("📂 Candidate Resume Upload")
+
 uploaded_files = st.file_uploader(
-    "Upload Resume PDFs",
+    "Upload Resume Files (PDF)",
     type=["pdf"],
     accept_multiple_files=True
 )
 
-match_button = st.button("🚀 Run AI Matching")
-st.divider()
+match_button = st.button("🚀 Execute Recruitment Analysis")
+
+st.markdown("---")
 
 # ================= RISK LOGIC =================
 def risk_indicator(gap, job_hop):
-    if gap > 12 or job_hop:
+    if gap > 12 and job_hop:
         return "🔴 High Risk"
-    elif gap > 6:
+    elif gap > 6 or job_hop:
         return "🟠 Medium Risk"
     else:
         return "🟢 Low Risk"
 
-# ================= MATCHING =================
+# ================= MATCHING PROCESS =================
 if match_button and uploaded_files:
 
-    st.info("🔎 AI Matching in Progress...")
+    st.info("Processing AI Recruitment Analysis...")
 
     candidates = []
 
     for file in uploaded_files:
-        name = file.name.replace(".pdf", "")
+        candidate_name = file.name.replace(".pdf", "")
         resume_text = extract_text_from_pdf(file)
 
         exp_list = parse_experience_dates(resume_text)
@@ -105,11 +138,10 @@ if match_button and uploaded_files:
 
             job_title = row["Job_title"]
 
-            if match_scope == "Single Job" and job_title != selected_job:
+            if match_scope == "Single Job Role" and job_title != selected_job:
                 continue
 
-            # ---- MATCHING MODE LOGIC ----
-            if matching_mode == "Single Field" and selected_field:
+            if matching_mode == "Specific Field Matching" and selected_field:
                 job_text = str(row[selected_field])
             else:
                 job_text = row["Combined_JD"]
@@ -119,14 +151,13 @@ if match_button and uploaded_files:
             )
 
             candidates.append({
-                "Candidate": name,
+                "Candidate": candidate_name,
                 "Job_Title": job_title,
-                "Match_Score": match_score,
-                "Skill_Score": skill_score,
-                "Experience_Score": exp_score,
+                "Match_Score": round(match_score, 2),
+                "Skill_Score": round(skill_score, 2),
+                "Experience_Score": round(exp_score, 2),
                 "Career_Gap_Months": max(gaps) if gaps else 0,
                 "Job_Hopping": "Yes" if job_hop_flag else "No",
-                "Avg_Tenure_Months": round(avg_tenure, 1),
                 "Risk_Level": risk_indicator(
                     max(gaps) if gaps else 0,
                     job_hop_flag
@@ -135,14 +166,17 @@ if match_button and uploaded_files:
 
     results_df = pd.DataFrame(candidates)
 
-    # ================= AUTO DETECT =================
-    if match_scope == "Auto Detect Best Job":
+    if results_df.empty:
+        st.error("No matching results found.")
+        st.stop()
+
+    if match_scope == "Auto Detect Best Role":
         results_df = results_df.sort_values(
             "Match_Score", ascending=False
         ).groupby("Candidate").head(1)
 
-    # ================= VISUAL ANALYTICS =================
-    st.subheader("📈 Match & Risk Analytics")
+    # ================= ANALYTICS =================
+    st.markdown("### 📈 Match & Risk Analytics")
 
     col1, col2 = st.columns(2)
 
@@ -161,16 +195,15 @@ if match_button and uploaded_files:
     )
     col2.plotly_chart(fig2, use_container_width=True)
 
-    st.divider()
+    st.markdown("---")
 
-    # ================= RANKED TABLE =================
-    st.subheader("🏆 Ranked Candidates")
+    # ================= RANKING =================
+    st.markdown("### 🏆 Ranked Candidates")
 
     results_df = results_df.sort_values(
         "Match_Score", ascending=False
     ).reset_index(drop=True)
 
-    # Add Rank starting from 1
     results_df.insert(0, "Rank", results_df.index + 1)
 
     display_df = results_df[
@@ -193,26 +226,28 @@ if match_button and uploaded_files:
     csv = display_df.to_csv(index=False).encode("utf-8")
 
     st.download_button(
-        "📥 Download Ranked Candidates CSV",
+        "📥 Download Ranked Results (CSV)",
         csv,
-        "ranked_candidates.csv",
+        "talency_ranked_candidates.csv",
         "text/csv"
     )
 
-    st.divider()
+    st.markdown("---")
 
-    # ================= EXECUTIVE SUMMARY (AT LAST) =================
-    st.subheader("📊 Executive Summary")
+    # ================= EXECUTIVE SUMMARY =================
+    st.markdown("### 📊 Executive Summary")
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
 
     col1.metric("Total Candidates", results_df["Candidate"].nunique())
     col2.metric("Average Match Score",
                 round(results_df["Match_Score"].mean(), 2))
     col3.metric("High Risk Candidates",
                 len(results_df[results_df["Risk_Level"] == "🔴 High Risk"]))
+    col4.metric("Top Match Score",
+                round(results_df["Match_Score"].max(), 2))
 
-    st.success("✅ AI Matching Completed Successfully!")
+    st.success("AI Recruitment Analysis Completed Successfully.")
 
 elif match_button:
-    st.warning("Please upload resumes first.")
+    st.warning("Please upload resume files to proceed.")
