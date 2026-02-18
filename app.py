@@ -17,10 +17,10 @@ st.set_page_config(
     page_icon="🚀"
 )
 
-# ================= PROFESSIONAL HEADER =================
+# ================= HEADER =================
 st.markdown("""
-<div style="text-align: center; padding: 10px 0px;">
-    <h1 style="font-size: 40px;">Talency Recruitment System</h1>
+<div style="text-align: center; padding: 20px 0px;">
+    <h1 style="font-size: 42px;">Talency Recruitment System</h1>
     <h3 style="color: grey; font-weight: normal;">
         AI-Powered Recruitment & Candidate–Job Matching System
     </h3>
@@ -33,8 +33,6 @@ st.markdown("""
 st.markdown("---")
 
 # ================= JOB DESCRIPTION SOURCE =================
-#st.sidebar.header("📄 Job Description Source")
-
 jd_source = st.sidebar.radio(
     "Select Job Description Source",
     ["Use Saved Job Description", "Upload New Job Description (.csv)"]
@@ -69,8 +67,6 @@ else:
 job_titles = jobs_df["Job_title"].unique().tolist()
 
 # ================= SYSTEM CONFIGURATION =================
-#st.sidebar.header("⚙️ System Configuration")
-
 match_scope = st.sidebar.radio(
     "Job Selection Strategy",
     ["Single Job Role", "Auto Detect Best Role"]
@@ -95,7 +91,7 @@ if match_scope == "Single Job Role":
         job_titles
     )
 
-st.sidebar.info("System Configuration Active")
+st.sidebar.success("System Configuration Active")
 
 # ================= RESUME UPLOAD =================
 st.subheader("📂 Candidate Resume Upload")
@@ -122,49 +118,49 @@ def risk_indicator(gap, job_hop):
 # ================= MATCHING PROCESS =================
 if match_button and uploaded_files:
 
-    st.info("Processing AI Recruitment Analysis...")
+    with st.spinner("Running AI Recruitment Engine..."):
 
-    candidates = []
+        candidates = []
 
-    for file in uploaded_files:
-        candidate_name = file.name.replace(".pdf", "")
-        resume_text = extract_text_from_pdf(file)
+        for file in uploaded_files:
+            candidate_name = file.name.replace(".pdf", "")
+            resume_text = extract_text_from_pdf(file)
 
-        exp_list = parse_experience_dates(resume_text)
-        gaps = detect_career_gap(exp_list)
-        job_hop_flag, avg_tenure = detect_job_hopping(exp_list)
+            exp_list = parse_experience_dates(resume_text)
+            gaps = detect_career_gap(exp_list)
+            job_hop_flag, avg_tenure = detect_job_hopping(exp_list)
 
-        for _, row in jobs_df.iterrows():
+            for _, row in jobs_df.iterrows():
 
-            job_title = row["Job_title"]
+                job_title = row["Job_title"]
 
-            if match_scope == "Single Job Role" and job_title != selected_job:
-                continue
+                if match_scope == "Single Job Role" and job_title != selected_job:
+                    continue
 
-            if matching_mode == "Specific Field Matching" and selected_field:
-                job_text = str(row[selected_field])
-            else:
-                job_text = row["Combined_JD"]
+                if matching_mode == "Specific Field Matching" and selected_field:
+                    job_text = str(row[selected_field])
+                else:
+                    job_text = row["Combined_JD"]
 
-            match_score, skill_score, exp_score = compute_match_score(
-                resume_text, job_text
-            )
-
-            candidates.append({
-                "Candidate": candidate_name,
-                "Job_Title": job_title,
-                "Match_Score": round(match_score, 2),
-                "Skill_Score": round(skill_score, 2),
-                "Experience_Score": round(exp_score, 2),
-                "Career_Gap_Months": max(gaps) if gaps else 0,
-                "Job_Hopping": "Yes" if job_hop_flag else "No",
-                "Risk_Level": risk_indicator(
-                    max(gaps) if gaps else 0,
-                    job_hop_flag
+                match_score, skill_score, exp_score = compute_match_score(
+                    resume_text, job_text
                 )
-            })
 
-    results_df = pd.DataFrame(candidates)
+                candidates.append({
+                    "Candidate": candidate_name,
+                    "Job_Title": job_title,
+                    "Match_Score": round(match_score, 2),
+                    "Skill_Score": round(skill_score, 2),
+                    "Experience_Score": round(exp_score, 2),
+                    "Career_Gap_Months": max(gaps) if gaps else 0,
+                    "Job_Hopping": "Yes" if job_hop_flag else "No",
+                    "Risk_Level": risk_indicator(
+                        max(gaps) if gaps else 0,
+                        job_hop_flag
+                    )
+                })
+
+        results_df = pd.DataFrame(candidates)
 
     if results_df.empty:
         st.error("No matching results found.")
@@ -176,29 +172,40 @@ if match_button and uploaded_files:
         ).groupby("Candidate").head(1)
 
     # ================= ANALYTICS =================
-    st.markdown("### 📈 Match & Risk Analytics")
+    st.markdown("## 📈 Match & Risk Analytics")
 
     col1, col2 = st.columns(2)
 
+    # Histogram (Professional Blue)
     fig1 = px.histogram(
         results_df,
         x="Match_Score",
         nbins=10,
-        title="Match Score Distribution"
+        title="Match Score Distribution",
+        color_discrete_sequence=["#1f77b4"]
     )
+    fig1.update_layout(template="plotly_white")
     col1.plotly_chart(fig1, use_container_width=True)
 
+    # Pie Chart (Custom Corporate Colors)
     fig2 = px.pie(
         results_df,
         names="Risk_Level",
-        title="Risk Level Distribution"
+        title="Risk Level Distribution",
+        color="Risk_Level",
+        color_discrete_map={
+            "🔴 High Risk": "#2F3E46",
+            "🟠 Medium Risk": "#52796F",
+            "🟢 Low Risk": "#84A98C"
+        }
     )
+    fig2.update_layout(template="plotly_white")
     col2.plotly_chart(fig2, use_container_width=True)
 
     st.markdown("---")
 
     # ================= RANKING =================
-    st.markdown("### 🏆 Ranked Candidates")
+    st.markdown("## 🏆 Ranked Candidates")
 
     results_df = results_df.sort_values(
         "Match_Score", ascending=False
@@ -206,36 +213,19 @@ if match_button and uploaded_files:
 
     results_df.insert(0, "Rank", results_df.index + 1)
 
-    display_df = results_df[
-        [
-            "Rank",
-            "Candidate",
-            "Job_Title",
-            "Match_Score",
-            "Skill_Score",
-            "Experience_Score",
-            "Career_Gap_Months",
-            "Job_Hopping",
-            "Risk_Level"
-        ]
-    ]
-
-    st.dataframe(display_df, use_container_width=True)
-
-    # ================= DOWNLOAD =================
-    csv = display_df.to_csv(index=False).encode("utf-8")
-
-    st.download_button(
-        "📥 Download Ranked Results (CSV)",
-        csv,
-        "talency_ranked_candidates.csv",
-        "text/csv"
+    # Top Candidate Highlight
+    top_candidate = results_df.iloc[0]
+    st.info(
+        f"🏆 Top Candidate: {top_candidate['Candidate']} "
+        f"| Match Score: {top_candidate['Match_Score']}"
     )
+
+    st.dataframe(results_df, use_container_width=True)
 
     st.markdown("---")
 
-    # ================= EXECUTIVE SUMMARY =================
-    st.markdown("### 📊 Executive Summary")
+    # ================= EXECUTIVE OVERVIEW (MOVED TO BOTTOM) =================
+    st.markdown("## 📊 Recruitment Performance Summary")
 
     col1, col2, col3, col4 = st.columns(4)
 
