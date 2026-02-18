@@ -40,7 +40,7 @@ def compute_match_score(resume_text, job_description, job_skills=None):
     )
 
     return (
-        round(final_score, 3),
-        round(skill_score, 3),
-        round(exp_score, 3)
-    )
+        round(final_score * 100, 2),
+        round(skill_score * 100, 2),
+        round(exp_score * 100, 2)
+       )
